@@ -8,7 +8,7 @@ import logging, json
 class Connect():
     def __init__(self):
         # declaring the third party API
-        self.algod_address = os.environ.get('PURESTAKE_URL')
+        self.algod_address = "https://testnet-algorand.api.purestake.io/ps2"
         self.algod_token = os.environ.get('PERSONAL_API_TOKEN_PURESTAKE') #shortened
         self.headers = {"X-API-Key": self.algod_token}
 
@@ -68,18 +68,22 @@ def convertToMnemonic():
  
 # Utility for restoring account from mnemonics
 def restoreAccount(_seedPhrase):
-    account = False
-    lostAccount = True
-    while lostAccount:
-        for key in accounts:
-            if (mnemonic.to_private_key(_seedPhrase)==key):
-                account = True
-                lostAccount = False
-                return("Pk: {}".format(mnemonic.to_public_key(_seedPhrase)), "Sk: {}".format(key))
+    p_addr = ""
+    s_addr = ""
+    success = True
+    s_key = mnemonic.to_private_key(_seedPhrase)
+    p_key = mnemonic.to_public_key(_seedPhrase)
+    for key in accounts:
+        if key == s_key:
+            p_addr = p_key
+            s_addr = s_addr
+            print(p_key, s_key)
+        return (success, "\n", s_key, "\n", p_key)
 
 
-i = restoreAccount(<ENTER MNEUMONIC KEY HERE>)
-print(i)
+restore = restoreAccount(dk)
+print(restore)
+      
 # In practice, you don not want to reveal secret key, but we only reference it here so we can
 # access and retrieve it.
 # Log accounts to file
@@ -114,11 +118,11 @@ def wait_for_confirmation(txid):
     return txinfo
 
 #   Utility function used to print created asset for account and assetid
-def print_created_asset(account, assetid):
+def print_created_asset(accountaddr, assetid):
     # note: if you have an indexer instance available it is easier to just use this
     # response = myindexer.accounts(asset_id = assetid)
     # then use 'account_info['created-assets'][0] to get info on the created asset
-    account_info = algo_client.account_info(account)
+    account_info = algo_client.account_info(accountaddr)
     idx = 0
     for my_account_info in account_info['created-assets']:
         scrutinized_asset = account_info['created-assets'][idx]
@@ -138,11 +142,11 @@ def print_created_asset(account, assetid):
             return("Asset does not exist")
 
 # Utility function used to print asset holding for account and assetid
-def print_asset_holding(account, assetid):
+def print_asset_holding(accountaddr, assetid):
     # note: if you have an indexer instance available it is easier to just use this
     # response = myindexer.accounts(asset_id = assetid)
     # then loop thru the accounts returned and match the account you are looking for
-    account_info = algo_client.account_info(account)
+    account_info = algo_client.account_info(accountaddr)
     idx = 0
     for my_account_info in account_info['assets']:
         scrutinized_asset = account_info['assets'][idx]
@@ -200,7 +204,20 @@ def getAssetIdv2(creatorAddr):
     return _Id
       
 # creating asset
-def createAsset():
+def createAsset(
+    creator,
+    sk,
+    asset_total,
+    toFreeze,
+    unitName,
+    assetName,
+    mngr_addr,
+    rsv_addr,
+    frz_addr,
+    clwbck_addr,
+    asst_link,
+    asset_decimal
+):
     # Account "host" creates an asset called "WIN" and
     # sets Host as the manager, reserve, freeze, and clawback address.
     # Asset Creation transaction
@@ -214,20 +231,20 @@ def createAsset():
     # Asset Creation transaction
 
     txn = AssetConfigTxn(
-        sender=host_pk,
+        sender=creator,
         sp=params,
-        total=50000,
-        default_frozen=False,
-        unit_name="WIN",
-        asset_name="Wingolden",
-        manager=game_pk,
-        reserve=game_pk,
-        freeze=game_pk,
-        clawback=game_pk,
-        url="asset_info_link.com",
-        decimals=0)
+        total=asset_total,
+        default_frozen=toFreeze,
+        unit_name=unitName,
+        asset_name=assetName,
+        manager=mngr_addr,
+        reserve=rsv_addr,
+        freeze=frz_addr,
+        clawback=clwbck_addr,
+        url=asst_link,
+        decimals=asset_decimal)
     # Sign with secret key of creator
-    stxn = txn.sign(host_sk)
+    stxn = txn.sign(sk)
 
     # Send the transaction to the network and retrieve the txid.
     txid = algo_client.send_transaction(stxn, headers={'content-type': 'application/x-binary'})
@@ -243,14 +260,14 @@ def createAsset():
         # Pull account info of the creator
         # get asset_id from tx
         # Get the new asset's information from the creator account
-        
+
         # Using this method makes asset_id available only inside this try block
         # Meanwhile I needd to use it elsewhere so an external function would be ideal
-        ptx = algod_client.pending_transaction_info(txid) #I tried this but didn't work for me hence I created alternative
+        ptx = algo_client.pending_transaction_info(txid) #I tried this but didn't work for me hence I created alternative
         asset_id = ptx["asset-index"]                     # function getAssetIdv2() to get asset_id
-        
+
         # asset_id = getAssetIdv2(host_pk) # Ignore this line if method above does work for you to get asset_id
-        
+
         createdAsset = print_created_asset(host_pk, asset_id)
         assetHolding = print_asset_holding(host_pk, asset_id)
         logging.info("...@dev/created Asset WIN... \nHost Address: {}\nPlayer Address: {}\nOperation 1 : {}\nOperation 2: {}\nOperation 3: {}\nAsset ID: {}\nCreated Asset: {} \nAsset Holding: {}\n".format(
@@ -265,10 +282,11 @@ def createAsset():
             ))
     except Exception as e:
         print(e)
-        
-      
-createAsset()  #comment out if you need make adjustment else an asset is created each time it runs.
 
+# comment line below to halt execute createAsset()
+createAsset(host_pk, host_sk, 50000, False, "WIN", "Smarthead", game_pk, game_pk, game_pk, game_pk, "asset_info_link.com", 0)
+      
+      
 # Opt in to accept assets
 def optIn(pk, sk):
     # RECEIVER TO OPT-IN FOR ASSET
