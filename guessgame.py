@@ -80,8 +80,10 @@ def restoreAccount(_seedPhrase):
             print(p_key, s_key)
         return (success, "\n", s_key, "\n", p_key)
 
-
-restore = restoreAccount(dk)
+      
+m = convertToMnemonic()
+seed = m["player_mnemonic"]
+restore = restoreAccount(seed)
 print(restore)
       
 # In practice, you don not want to reveal secret key, but we only reference it here so we can
